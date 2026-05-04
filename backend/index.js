@@ -19,36 +19,22 @@ const PORT = Number(process.env.PORT) || 3001;
 const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '';
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
 const HCAPTCHA_REQUIRED = process.env.HCAPTCHA_REQUIRED !== 'false';
-const BOOKING_TOKEN_SECRET = process.env.BOOKING_TOKEN_SECRET || '';
-const BOOKING_TOKEN_TTL_MS = Number(process.env.BOOKING_TOKEN_TTL_MS) || 5 * 60 * 1000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gogutter.vercel.app')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 
 const captchaReplayStore = new Map();
-const tokenReplayStore = new Map();
 
 const hashIp = (ip) => crypto.createHash('sha256').update(String(ip || '')).digest('hex');
-
-const base64urlEncode = (value) => Buffer.from(value).toString('base64url');
-const base64urlDecode = (value) => Buffer.from(value, 'base64url').toString('utf8');
-
-const hmacSignature = (value) => {
-  return crypto.createHmac('sha256', BOOKING_TOKEN_SECRET).update(value).digest('base64url');
-};
 
 const markReplay = (store, key, ttlMs) => {
   const now = Date.now();
   for (const [storedKey, expiresAt] of store) {
     if (expiresAt <= now) store.delete(storedKey);
   }
-
   const existing = store.get(key);
-  if (existing && existing > now) {
-    return true;
-  }
-
+  if (existing && existing > now) return true;
   store.set(key, now + ttlMs);
   return false;
 };
@@ -82,25 +68,11 @@ const SERVICE_LABELS = {
 const CITY_ALLOWLIST = ['Rawalpindi / Islamabad', 'Murree', 'Peshawar'];
 const TOWNS_BY_CITY = {
   'Rawalpindi / Islamabad': [
-    'DHA Phase 1',
-    'DHA Phase 2',
-    'DHA Phase 3',
-    'DHA Phase 4',
-    'DHA Phase 5',
-    'Bahria Phase 1',
-    'Bahria Phase 2',
-    'Bahria Phase 3',
-    'Bahria Phase 4',
-    'Bahria Phase 5',
-    'Bahria Phase 6',
-    'Bahria Phase 7',
-    'Bahria Phase 8',
-    'PWD Housing Society',
-    'Ghouri Town',
-    'Gulrez',
-    'Gulberg Greens',
-    'Adyala Road',
-    'Other (if area not in list)',
+    'DHA Phase 1', 'DHA Phase 2', 'DHA Phase 3', 'DHA Phase 4', 'DHA Phase 5',
+    'Bahria Phase 1', 'Bahria Phase 2', 'Bahria Phase 3', 'Bahria Phase 4',
+    'Bahria Phase 5', 'Bahria Phase 6', 'Bahria Phase 7', 'Bahria Phase 8',
+    'PWD Housing Society', 'Ghouri Town', 'Gulrez', 'Gulberg Greens',
+    'Adyala Road', 'Other (if area not in list)',
   ],
   Murree: [],
   Peshawar: [],
@@ -108,15 +80,15 @@ const TOWNS_BY_CITY = {
 
 const BookingSchema = z
   .object({
-  serviceId: z.enum(SERVICE_IDS),
+    serviceId: z.enum(SERVICE_IDS),
     city: z.enum(CITY_ALLOWLIST),
     town: z.string().max(80).optional().or(z.literal('')),
-  fullAddress: z.string().min(5).max(160),
-  name: z.string().min(2).max(60),
-  phone: z.string().regex(/^\+?\d{10,15}$/),
-  issueDetails: z.string().max(200).optional().or(z.literal('')),
-  captchaToken: z.string().min(1),
-  deviceFingerprint: z.string().max(128).optional().or(z.literal('')),
+    fullAddress: z.string().min(5).max(160),
+    name: z.string().min(2).max(60),
+    phone: z.string().regex(/^\+?\d{10,15}$/),
+    issueDetails: z.string().max(200).optional().or(z.literal('')),
+    captchaToken: z.string().min(1),
+    deviceFingerprint: z.string().max(128).optional().or(z.literal('')),
   })
   .refine((data) => {
     if (!data.town) return true;
@@ -124,13 +96,8 @@ const BookingSchema = z
     return towns.includes(data.town);
   }, { message: 'Invalid town for selected city', path: ['town'] });
 
-const sanitizeText = (value, maxLength) => {
-  return value
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLength);
-};
+const sanitizeText = (value, maxLength) =>
+  value.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 
 const sanitizeOptional = (value, maxLength) => {
   if (!value) return '';
@@ -194,9 +161,7 @@ const verifyCaptcha = async (token, ip) => {
     }
 
     const replayKey = `captcha:${token}`;
-    if (markReplay(captchaReplayStore, replayKey, 5 * 60 * 1000)) {
-      return false;
-    }
+    if (markReplay(captchaReplayStore, replayKey, 5 * 60 * 1000)) return false;
 
     return true;
   } catch (err) {
@@ -224,17 +189,12 @@ const ALLOW_NO_ORIGIN = process.env.ALLOW_NO_ORIGIN === 'true' || process.env.NO
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) {
-        if (ALLOW_NO_ORIGIN) return callback(null, true);
-        return callback(null, true); // Allow requests without origin header
-      }
-      if (!originAllowlist.has(origin)) {
-        return callback(new Error('Origin not allowed by CORS'), false);
-      }
+      if (!origin) return callback(null, true);
+      if (!originAllowlist.has(origin)) return callback(new Error('Origin not allowed by CORS'), false);
       return callback(null, true);
     },
     methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'x-booking-token'],
+    allowedHeaders: ['Content-Type'],
     maxAge: 600,
   })
 );
@@ -252,7 +212,6 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
-// Root route
 app.get('/', (_req, res) => {
   res.status(200).json({ message: 'Go Gutter Booking API', status: 'running' });
 });
@@ -261,95 +220,48 @@ app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-app.get('/api/booking-token', (req, res) => {
-  if (!BOOKING_TOKEN_SECRET) {
-    return res.status(500).json({ message: 'Booking token secret is not configured.' });
-  }
-
-  const tokenId = crypto.randomUUID();
-  const issuedAt = Date.now();
-  const payload = JSON.stringify({ tokenId, issuedAt });
-  const signature = hmacSignature(payload);
-  const token = `${base64urlEncode(payload)}.${signature}`;
-
-  return res.status(200).json({ token, issuedAt });
-});
-
-app.post('/api/bookings', async (req, res, next) => { try {
-  const bookingToken = req.header('x-booking-token') || '';
-  if (!BOOKING_TOKEN_SECRET || !bookingToken) {
-    return res.status(401).json({ message: 'Missing booking token.' });
-  }
-
-  const [encodedPayload, signature] = bookingToken.split('.');
-  if (!encodedPayload || !signature) {
-    return res.status(401).json({ message: 'Invalid booking token.' });
-  }
-
-  const decodedPayload = base64urlDecode(encodedPayload);
-  const expectedSignature = hmacSignature(decodedPayload);
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expectedSignature);
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-    return res.status(401).json({ message: 'Invalid booking token signature.' });
-  }
-
-  let tokenPayload;
+app.post('/api/bookings', async (req, res, next) => {
   try {
-    tokenPayload = JSON.parse(decodedPayload);
-  } catch {
-    return res.status(401).json({ message: 'Invalid booking token payload.' });
+    if (!WHATSAPP_NUMBER) {
+      return res.status(500).json({ message: 'Missing WhatsApp configuration.' });
+    }
+
+    const normalizedWhatsApp = normalizeWhatsAppNumber(WHATSAPP_NUMBER);
+    if (!normalizedWhatsApp) {
+      return res.status(500).json({ message: 'Invalid WhatsApp configuration.' });
+    }
+
+    const parseResult = BookingSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ message: 'Invalid payload.', errors: parseResult.error.flatten() });
+    }
+
+    const payload = parseResult.data;
+
+    const captchaOk = await verifyCaptcha(payload.captchaToken, req.ip);
+    if (!captchaOk) {
+      return res.status(403).json({ message: 'Captcha verification failed.' });
+    }
+
+    const bookingId = crypto.randomUUID();
+    const message = buildMessage(payload);
+    if (message.length > 800) {
+      return res.status(400).json({ message: 'Message too long.' });
+    }
+
+    const redirectUrl = `https://wa.me/${normalizedWhatsApp}?text=${encodeURIComponent(message)}`;
+
+    console.info('[booking]', {
+      bookingId,
+      serviceId: safeLogValue(payload.serviceId),
+      ip: safeLogValue(hashIp(req.ip)),
+    });
+
+    return res.status(200).json({ bookingId, redirectUrl });
+  } catch (err) {
+    next(err);
   }
-
-  if (!tokenPayload?.tokenId || !tokenPayload?.issuedAt) {
-    return res.status(401).json({ message: 'Invalid booking token contents.' });
-  }
-
-  if (Date.now() - Number(tokenPayload.issuedAt) > BOOKING_TOKEN_TTL_MS) {
-    return res.status(401).json({ message: 'Booking token expired.' });
-  }
-
-  if (!WHATSAPP_NUMBER) {
-    return res.status(500).json({ message: 'Missing WhatsApp configuration.' });
-  }
-
-  const normalizedWhatsApp = normalizeWhatsAppNumber(WHATSAPP_NUMBER);
-  if (!normalizedWhatsApp) {
-    return res.status(500).json({ message: 'Invalid WhatsApp configuration.' });
-  }
-
-  const parseResult = BookingSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    return res.status(400).json({ message: 'Invalid payload.', errors: parseResult.error.flatten() });
-  }
-
-  const payload = parseResult.data;
-
-  const captchaOk = await verifyCaptcha(payload.captchaToken, req.ip);
-  if (!captchaOk) {
-    return res.status(403).json({ message: 'Captcha verification failed.' });
-  }
-
-  if (markReplay(tokenReplayStore, tokenPayload.tokenId, BOOKING_TOKEN_TTL_MS)) {
-    return res.status(409).json({ message: 'Duplicate booking request detected.' });
-  }
-
-  const bookingId = crypto.randomUUID();
-  const message = buildMessage(payload);
-  if (message.length > 800) {
-    return res.status(400).json({ message: 'Message too long.' });
-  }
-
-  const redirectUrl = `https://wa.me/${normalizedWhatsApp}?text=${encodeURIComponent(message)}`;
-
-  console.info('[booking]', {
-    bookingId,
-    serviceId: safeLogValue(payload.serviceId),
-    ip: safeLogValue(hashIp(req.ip)),
-  });
-
-  return res.status(200).json({ bookingId, redirectUrl });
-  } catch (err) { next(err); } });
+});
 
 app.use((err, _req, res, _next) => {
   console.error('[error]', err);

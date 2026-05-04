@@ -170,34 +170,39 @@ const verifyCaptcha = async (token, ip) => {
   if (!HCAPTCHA_REQUIRED) return true;
   if (!HCAPTCHA_SECRET) return false;
 
-  const params = new URLSearchParams({
-    secret: HCAPTCHA_SECRET,
-    response: token,
-    remoteip: ip || '',
-  });
+  try {
+    const params = new URLSearchParams({
+      secret: HCAPTCHA_SECRET,
+      response: token,
+      remoteip: ip || '',
+    });
 
-  const response = await fetch('https://hcaptcha.com/siteverify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+    const response = await fetch('https://hcaptcha.com/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
 
-  if (!response.ok) return false;
-  const data = await response.json();
-  if (!data.success) return false;
+    if (!response.ok) return false;
+    const data = await response.json();
+    if (!data.success) return false;
 
-  if (data['challenge_ts']) {
-    const challengeTime = Date.parse(data['challenge_ts']);
-    if (!Number.isFinite(challengeTime)) return false;
-    if (Date.now() - challengeTime > 2 * 60 * 1000) return false;
-  }
+    if (data['challenge_ts']) {
+      const challengeTime = Date.parse(data['challenge_ts']);
+      if (!Number.isFinite(challengeTime)) return false;
+      if (Date.now() - challengeTime > 2 * 60 * 1000) return false;
+    }
 
-  const replayKey = `captcha:${token}`;
-  if (markReplay(captchaReplayStore, replayKey, 5 * 60 * 1000)) {
+    const replayKey = `captcha:${token}`;
+    if (markReplay(captchaReplayStore, replayKey, 5 * 60 * 1000)) {
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[captcha] verification error:', err);
     return false;
   }
-
-  return true;
 };
 
 app.use(express.json({ limit: '10kb' }));
@@ -270,7 +275,7 @@ app.get('/api/booking-token', (req, res) => {
   return res.status(200).json({ token, issuedAt });
 });
 
-app.post('/api/bookings', async (req, res) => {
+app.post('/api/bookings', async (req, res, next) => { try {
   const bookingToken = req.header('x-booking-token') || '';
   if (!BOOKING_TOKEN_SECRET || !bookingToken) {
     return res.status(401).json({ message: 'Missing booking token.' });
@@ -283,7 +288,9 @@ app.post('/api/bookings', async (req, res) => {
 
   const decodedPayload = base64urlDecode(encodedPayload);
   const expectedSignature = hmacSignature(decodedPayload);
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     return res.status(401).json({ message: 'Invalid booking token signature.' });
   }
 
@@ -342,7 +349,7 @@ app.post('/api/bookings', async (req, res) => {
   });
 
   return res.status(200).json({ bookingId, redirectUrl });
-});
+  } catch (err) { next(err); } });
 
 app.use((err, _req, res, _next) => {
   console.error('[error]', err);

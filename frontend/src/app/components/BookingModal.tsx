@@ -20,25 +20,11 @@ const cities = [
 
 const townsByCity: Record<string, string[]> = {
   'Rawalpindi / Islamabad': [
-    'DHA Phase 1',
-    'DHA Phase 2',
-    'DHA Phase 3',
-    'DHA Phase 4',
-    'DHA Phase 5',
-    'Bahria Phase 1',
-    'Bahria Phase 2',
-    'Bahria Phase 3',
-    'Bahria Phase 4',
-    'Bahria Phase 5',
-    'Bahria Phase 6',
-    'Bahria Phase 7',
-    'Bahria Phase 8',
-    'PWD Housing Society',
-    'Ghouri Town',
-    'Gulrez',
-    'Gulberg Greens',
-    'Adyala Road',
-    'Other (if area not in list)',
+    'DHA Phase 1', 'DHA Phase 2', 'DHA Phase 3', 'DHA Phase 4', 'DHA Phase 5',
+    'Bahria Phase 1', 'Bahria Phase 2', 'Bahria Phase 3', 'Bahria Phase 4',
+    'Bahria Phase 5', 'Bahria Phase 6', 'Bahria Phase 7', 'Bahria Phase 8',
+    'PWD Housing Society', 'Ghouri Town', 'Gulrez', 'Gulberg Greens',
+    'Adyala Road', 'Other (if area not in list)',
   ],
   'Murree': [],
   'Peshawar': [],
@@ -76,7 +62,7 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deviceFingerprint, setDeviceFingerprint] = useState('');
-  const [bookingToken, setBookingToken] = useState('');
+
   const selectedCategory = normalizeService(service);
   const filteredAds = useMemo(
     () => (selectedCategory ? ADS.filter((ad) => ad.categoryId === selectedCategory) : []),
@@ -90,25 +76,6 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
       setService(selectedService || '');
     }
   }, [isOpen, selectedService]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    fetch(`${apiBase}/api/booking-token`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data?.token) {
-          setBookingToken(data.token);
-          setSubmitError(null);
-        } else {
-          setBookingToken('');
-          setSubmitError('Booking token unavailable. Please retry.');
-        }
-      })
-      .catch(() => {
-        setBookingToken('');
-        setSubmitError('Booking token unavailable. Please retry.');
-      });
-  }, [isOpen]);
 
   useEffect(() => {
     if (import.meta.env.DEV && service) {
@@ -177,11 +144,6 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
       return;
     }
 
-    if (!bookingToken) {
-      setSubmitError('Booking token unavailable. Please retry.');
-      return;
-    }
-
     if (!captchaToken) {
       setSubmitError('Please complete the captcha verification.');
       return;
@@ -192,7 +154,7 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
     try {
       const response = await fetch(`${apiBase}/api/bookings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-booking-token': bookingToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           serviceId: selectedCategory,
           city,
@@ -225,7 +187,6 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
       setPhone('');
       setNotes('');
       setCaptchaToken('');
-      setBookingToken('');
       onClose();
     } catch (error) {
       setSubmitError('Network error. Please try again.');

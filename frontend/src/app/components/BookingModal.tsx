@@ -83,6 +83,7 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
     [selectedCategory]
   );
   const captchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined;
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || '';
 
   useEffect(() => {
     if (isOpen) {
@@ -92,7 +93,7 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch('/api/booking-token')
+    fetch(`${apiBase}/api/booking-token`)
       .then((response) => response.json())
       .then((data) => {
         if (data?.token) {
@@ -189,7 +190,7 @@ export function BookingModal({ isOpen, onClose, selectedService }: BookingModalP
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/bookings', {
+      const response = await fetch(`${apiBase}/api/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-booking-token': bookingToken },
         body: JSON.stringify({

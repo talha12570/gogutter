@@ -21,7 +21,7 @@ const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
 const HCAPTCHA_REQUIRED = process.env.HCAPTCHA_REQUIRED !== 'false';
 const BOOKING_TOKEN_SECRET = process.env.BOOKING_TOKEN_SECRET || '';
 const BOOKING_TOKEN_TTL_MS = Number(process.env.BOOKING_TOKEN_TTL_MS) || 5 * 60 * 1000;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gogutter.vercel.app')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
@@ -221,7 +221,7 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) {
         if (ALLOW_NO_ORIGIN) return callback(null, true);
-        return callback(new Error('Origin required by CORS'), false);
+        return callback(null, true); // Allow requests without origin header
       }
       if (!originAllowlist.has(origin)) {
         return callback(new Error('Origin not allowed by CORS'), false);

@@ -247,6 +247,11 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
+// Root route
+app.get('/', (_req, res) => {
+  res.status(200).json({ message: 'Go Gutter Booking API', status: 'running' });
+});
+
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });

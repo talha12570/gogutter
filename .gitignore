@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# builds
+frontend/dist/
+backend/dist/
+
+# Vite
+frontend/.vite/
+
+# env files
+.env
+.env.*
+!*.env.example
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+.DS_Store

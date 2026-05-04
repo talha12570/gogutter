@@ -1,8 +1,15 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://gogutter.onrender.com/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://gogutter.onrender.com/api/$1",
+      "headers": {
+        "origin": "https://gogutter.vercel.app"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
